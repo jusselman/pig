@@ -33,6 +33,9 @@ const GameScreen = ({ onGameOver, onWin }) => {
 
   const gameLoop = useRef(null);
   const platformLoop = useRef(null); 
+  const hasJumpedFromPlatform = useRef(false);
+  const upDistanceRef = useRef(0);
+
 
   const moveLeft = () => {
     setJumperLeft((prev) => Math.max(prev - 10, 0));
@@ -44,20 +47,20 @@ const GameScreen = ({ onGameOver, onWin }) => {
 
   // Main jump/fall loop
   useEffect(() => {
-    let upDistance = 0;
-  
     gameLoop.current = setInterval(() => {
       setJumperBottom((prev) => {
         let newBottom = prev;
   
         if (isJumping) {
           newBottom = prev + 10;
-          upDistance += 10;
+          upDistanceRef.current += 10;
   
-          if (upDistance >= JUMP_HEIGHT) {
+          if (upDistanceRef.current >= JUMP_HEIGHT) {
             setIsJumping(false);
-            upDistance = 0;
+            hasJumpedFromPlatform.current = false;
+            upDistanceRef.current = 0;
           }
+  
         } else {
           newBottom = prev - GRAVITY;
         }
@@ -69,8 +72,7 @@ const GameScreen = ({ onGameOver, onWin }) => {
           return 0;
         }
   
-        // Check collision with platforms only if falling
-        if (!isJumping) {
+        if (!isJumping && !hasJumpedFromPlatform.current) {
           platforms.forEach((plat) => {
             const isAbove = prev >= plat.bottom + PLATFORM_HEIGHT;
             const isLanding =
@@ -82,7 +84,7 @@ const GameScreen = ({ onGameOver, onWin }) => {
   
             if (isAbove && isLanding && withinX) {
               setIsJumping(true);
-              upDistance = 0;
+              hasJumpedFromPlatform.current = true;
               newBottom = plat.bottom + PLATFORM_HEIGHT;
             }
           });
@@ -95,30 +97,52 @@ const GameScreen = ({ onGameOver, onWin }) => {
     return () => clearInterval(gameLoop.current);
   }, [isJumping, platforms, jumperLeft]);
   
+  
 
-  // Move platforms downward over time 
-  useEffect(() => {
+ // Move platforms downward over time
+ useEffect(() => {
     platformLoop.current = setInterval(() => {
       setPlatforms((prev) => {
-        const updated = prev
-          .map((plat) => ({ ...plat, bottom: plat.bottom - PLATFORM_SPEED }))
+        // Move existing platforms downward
+        const moved = prev
+          .map((plat) => ({
+            ...plat,
+            bottom: plat.bottom - PLATFORM_SPEED,
+          }))
           .filter((plat) => plat.bottom > -PLATFORM_HEIGHT);
+  
+        const newPlatforms = [...moved];
+  
+        // Add new platforms if fewer than 6
+       while (newPlatforms.length < 6) {
+  const previousPlatform = newPlatforms[newPlatforms.length - 1];
+  const maxGap = JUMP_HEIGHT - 10; // ensures reachable platforms
+  const minGap = 40; // prevent overlapping
 
-        // Add new platform if one is removed
-        while (updated.length < 6) {
-          updated.push({
-            left: Math.random() * (screenWidth - PLATFORM_WIDTH),
-            bottom: screenHeight,
-          });
-          setScore((s) => s + 1); // Increase score for each survived step
-        }
+  const newBottom = previousPlatform
+    ? previousPlatform.bottom + Math.max(
+        minGap,
+        Math.min(Math.random() * maxGap, maxGap)
+      )
+    : screenHeight + Math.random() * 60;
 
-        return updated;
+  newPlatforms.push({
+    left: Math.random() * (screenWidth - PLATFORM_WIDTH),
+    bottom: newBottom,
+  });
+
+  setScore((s) => s + 1);
+}
+
+  
+        return newPlatforms;
       });
     }, 100);
-
+  
     return () => clearInterval(platformLoop.current);
   }, []);
+  
+  
 
   // Win condition
   useEffect(() => {
@@ -128,6 +152,15 @@ const GameScreen = ({ onGameOver, onWin }) => {
       onWin();
     }
   }, [score]);
+  
+  useEffect(() => {
+    if (jumperBottom <= 0) {
+      clearInterval(gameLoop.current);
+      clearInterval(platformLoop.current);
+      onGameOver();
+    }
+  }, [jumperBottom]);
+  
 
   return (
     <View style={styles.container}>
