@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import GameOverScreen from './GameOverScreen';
 import GameAudio from './GameAudio'; // Custom hook
+import { Animated, Easing } from 'react-native';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -22,6 +23,7 @@ const PLATFORM_SPEED = 2;
 const WIN_SCORE = 50;
 
 const GameScreen = ({ onGameOver, onWin }) => {
+  const enemyX = useRef(new Animated.Value(screenWidth)).current;
   const [jumperLeft, setJumperLeft] = useState(screenWidth / 2 - PIG_WIDTH / 2);
   const [jumperBottom, setJumperBottom] = useState(150);
   const [isJumping, setIsJumping] = useState(false);
@@ -39,34 +41,85 @@ const GameScreen = ({ onGameOver, onWin }) => {
   const hasJumpedFromPlatform = useRef(false);
   const upDistanceRef = useRef(0);
 
+  const scrollX = useRef(new Animated.Value(0)).current;
+
   const {
     playSound,
     stopSound,
-    toggleMute,
-    muted,
     unloadAll
   } = GameAudio();
 
+   // Animate the enemy
+   useEffect(() => {
+    const animateEnemy = () => {
+      enemyX.setValue(screenWidth); // Start from the right
+      Animated.timing(enemyX, {
+        toValue: -100, // Move off to the left
+        duration: 5000,
+        useNativeDriver: true,
+        easing: Easing.linear,
+      }).start(() => {
+        // Restart the animation if you want a loop:
+        animateEnemy();
+      });
+    };
+  
+    animateEnemy();
+  }, []);
+
+
+  // Animate cloud background //
+  const backgroundLoop = useRef(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+  
+    const startScrolling = () => {
+      scrollX.setValue(0);
+      backgroundLoop.current = Animated.loop(
+        Animated.timing(scrollX, {
+          toValue: -screenWidth,
+          duration: 15000,
+          useNativeDriver: true,
+          easing: Easing.linear,
+        })
+      );
+      backgroundLoop.current.start();
+    };
+  
+    startScrolling();
+  
+    return () => {
+      isCancelled = true;
+      backgroundLoop.current?.stop();
+    };
+  }, []);  
+
   // Handle game over
+  const [hasGameOverPlayed, setHasGameOverPlayed] = useState(false);
+
   const handleGameOver = async () => {
+    if (hasGameOverPlayed) return;
+    setHasGameOverPlayed(true);
+  
     clearInterval(gameLoop.current);
     clearInterval(platformLoop.current);
-    await stopSound("playingMusic"); // stop game music
-    await playSound("gameOver", require("../assets/audio/gameOver.mp3")); // play once
+    await stopSound("playingMusic");
+    await playSound("gameOver", require("../assets/audio/gameOver.mp3"));
     setShowGameOver(true);
   };
   
-
   // Handle play again
   const handlePlayAgain = async () => {
-    await stopSound("gameOver"); // stop leftover game over music
+    setHasGameOverPlayed(false); // Reset game over trigger
+    await stopSound("gameOver"); // Stop game over music
     await playSound("playingMusic", require("../assets/audio/playingMusic.mp3"), { loop: true });
   
     // Reset game state
     setShowGameOver(false);
     setScore(0);
     setJumperLeft(screenWidth / 2 - PIG_WIDTH / 2);
-    setJumperBottom(150);
+    setJumperBottom(250);
     setIsJumping(false);
     setPlatforms(Array.from({ length: 6 }, (_, i) => ({
       left: Math.random() * (screenWidth - PLATFORM_WIDTH),
@@ -74,21 +127,22 @@ const GameScreen = ({ onGameOver, onWin }) => {
     })));
     hasJumpedFromPlatform.current = false;
     upDistanceRef.current = 0;
-  };
+  };  
   
 
   // Start background music once at mount
   useEffect(() => {
-    playSound('music', require('../assets/audio/playingMusic.mp3'), { isLooping: true });
+    playSound('playingMusic', require('../assets/audio/playingMusic.mp3'), { loop: true });
     return () => unloadAll();
-  }, []);
+  }, []);  
 
   useEffect(() => {
     return () => {
       unloadAll(); // stop & unload all sounds when GameScreen unmounts
     };
-  }, []);
-  
+  }, []);  
+
+
 
   // Main jump/fall loop
   useEffect(() => {
@@ -180,6 +234,7 @@ const GameScreen = ({ onGameOver, onWin }) => {
 
     return () => clearInterval(platformLoop.current);
   }, [showGameOver]);
+  
 
   // Check for win condition
   useEffect(() => {
@@ -195,13 +250,37 @@ const GameScreen = ({ onGameOver, onWin }) => {
 
   return (
     <View style={styles.container}>
+      {/* Layered Visual Elements */}
+      <View style={StyleSheet.absoluteFill}>
+        {/* Background clouds at lowest layer */}
+        <Animated.Image
+          source={require('../assets/img/skyBg.png')}
+          style={{
+            position: 'absolute',
+            width: screenWidth * 10,
+            height: screenHeight,
+            transform: [{ translateX: scrollX }],
+            zIndex: 0, // ensure it's behind everything else
+          }}
+          resizeMode="repeat"
+        />
+  
+        {/* Animated enemy above background */}
+        <Animated.Image
+          source={require('../assets/img/enemyBird.gif')}
+          style={{
+            position: 'absolute',
+            width: 60,
+            height: 60,
+            top: screenHeight / 2 - 30,
+            transform: [{ translateX: enemyX }],
+            zIndex: 10, // ensure it appears in front
+          }}
+        />
+      </View>
+
       {/* Score Counter */}
       <Text style={styles.score}>{score}</Text>
-
-      {/* Mute Toggle */}
-      <TouchableOpacity style={styles.muteButton} onPress={toggleMute}>
-        <Text style={{ color: 'white' }}>{muted ? '🔇' : '🔊'}</Text>
-      </TouchableOpacity>
 
       {/* Platforms */}
       {platforms.map((plat, index) => (
@@ -280,6 +359,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#333',
     borderRadius: 20,
   },
+  enemy: {
+  width: 50,
+  height: 50,
+  position: 'absolute',
+  top: screenHeight / 2 - 25, // adjust vertically to center
+  zIndex: 999, // bring to front if necessary
+},
+
 });
 
 export default GameScreen;
