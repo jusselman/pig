@@ -1,9 +1,8 @@
 // components/GameAudio.js
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Audio } from 'expo-av';
 
 export default function useGameAudio() {
-  const [muted, setMuted] = useState(false);
   const sounds = useRef({});
   const currentMusic = useRef(null); // Track music that should be unique (looping)
 
@@ -15,8 +14,6 @@ export default function useGameAudio() {
   };
 
   const playSound = async (name, file, { loop = false } = {}) => {
-    if (muted) return;
-
     // Prevent duplicate playbacks of music
     if (loop && currentMusic.current === name) return;
 
@@ -32,7 +29,15 @@ export default function useGameAudio() {
       await sound.setIsLoopingAsync(true);
     }
 
-    await sound.playAsync();
+    try {
+      if (!loop) {
+        await sound.stopAsync();
+        await sound.setPositionAsync(0);
+      }
+      await sound.playAsync();
+    } catch (e) {
+      console.warn(`Error playing sound "${name}":`, e);
+    }
   };
 
   const stopSound = async (name) => {
@@ -71,8 +76,5 @@ export default function useGameAudio() {
     stopSound,
     stopAllSounds,
     unloadAll,
-    muted,
-    toggleMute: () => setMuted((m) => !m),
   };
 }
-
