@@ -1,8 +1,9 @@
 // App.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import * as Font from 'expo-font';
 import AppLoading from 'expo-app-loading';
+import * as Audio from 'expo-av'; // <- Add this
 
 // Screens
 import StartScreen from './components/StartScreen';
@@ -17,9 +18,24 @@ const loadFonts = () => {
   });
 };
 
+const configureAudio = async () => {
+  await Audio.setAudioModeAsync({
+    allowsRecordingIOS: false,
+    interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+    playsInSilentModeIOS: true,
+    shouldDuckAndroid: true,
+    interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+    playThroughEarpieceAndroid: false,
+  });
+};
+
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
-  const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'gameOver', 'win'
+  const [gameState, setGameState] = useState('start');
+
+  useEffect(() => {
+    configureAudio(); //Ensure audio is configured once at app load
+  }, []);
 
   if (!fontsLoaded) {
     return (

@@ -1,10 +1,21 @@
-// components/GameAudio.js
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Audio } from 'expo-av';
 
 export default function useGameAudio() {
   const sounds = useRef({});
   const currentMusic = useRef(null); // Track music that should be unique (looping)
+
+  // 🔊 Configure iOS/Android audio mode once
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+      playsInSilentModeIOS: true,        // allows audio on iOS even in silent mode
+      shouldDuckAndroid: true,
+      interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+      playThroughEarpieceAndroid: false, // ensures audio routes to speaker
+    });
+  }, []);
 
   const loadSound = async (name, file) => {
     if (!sounds.current[name]) {
@@ -14,14 +25,12 @@ export default function useGameAudio() {
   };
 
   const playSound = async (name, file, { loop = false } = {}) => {
-    // Prevent duplicate playbacks of music
     if (loop && currentMusic.current === name) return;
 
     await loadSound(name, file);
     const sound = sounds.current[name];
 
     if (loop) {
-      // Stop any currently looping music before starting new one
       if (currentMusic.current && currentMusic.current !== name) {
         await stopSound(currentMusic.current);
       }

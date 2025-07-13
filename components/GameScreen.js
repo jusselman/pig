@@ -24,6 +24,7 @@ const GRAVITY = 4;
 const PLATFORM_SPEED = 2;
 const WIN_SCORE = 50;
 
+
 const GameScreen = ({ onGameOver, onWin }) => {
   const enemyX = useRef(new Animated.Value(screenWidth)).current;
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -119,7 +120,7 @@ const GameScreen = ({ onGameOver, onWin }) => {
         useNativeDriver: false,
         easing: Easing.linear,
       }).start(() => {
-        if (!isCancelled) animateEnemy(); // ✅ Loop again
+        if (!isCancelled) animateEnemy(); // Loop again
       });
     };
   
